@@ -1383,6 +1383,80 @@ void testReadPPm() {
 		waitKey();
 	}
 }
+
+//LABORATOR 30.03
+Mat_<uchar> createKernel(int n, bool isCross) {
+	Mat_<uchar> kernell(n, n);
+	kernell.setTo(0);
+	if (isCross) {
+		for (int i = 0; i < kernell.rows; i++) {
+			kernell(i, kernell.cols / 2) = 0;
+		}
+		for (int j = 0; j < kernell.cols; j++) {
+			kernell(kernell.rows / 2, j) = 0;
+		}
+		return kernell;
+	}
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < n; j++) {
+			kernell(i, j) = 0;
+		}
+	}
+	return kernell;
+}
+
+void dillation(Mat_<uchar> kernell) {
+	char fname[256];
+	while (openFileDlg(fname)) {
+		Mat_<uchar> src = imread(fname, IMREAD_GRAYSCALE);
+		int height = src.rows;
+		int width = src.cols;
+		Mat_<uchar> dst = src.clone();
+
+		for (int i = 0; i < height; i++) {
+			for (int j = 0; j < width; j++) {
+				if (src(i, j) == 0) {
+					for (int u = 0; u < kernell.rows; u++) {
+						for (int v = 0; v < kernell.cols; v++) {
+							if (kernell(u, v) == 0 && isInside(src, i + u - kernell.rows / 2, j + v - kernell.cols / 2)) {
+								dst(i + u - kernell.rows / 2, j + v - kernell.cols / 2) = 0;
+							}
+						}
+					}
+				}
+			}
+		}
+		imshow("Final", dst);
+		waitKey();
+	}
+}
+
+void erosion(Mat_<uchar> kernell) {
+	char fname[256];
+	while (openFileDlg(fname)) {
+		Mat_<uchar> src = imread(fname, IMREAD_GRAYSCALE);
+		int height = src.rows;
+		int width = src.cols;
+		Mat_<uchar> dst = src.clone();
+		for (int i = 0; i < height; i++) {
+			for (int j = 0; j < width; j++) {
+				if (src(i, j) == 0) {
+					for (int u = 0; u < kernell.rows; u++) {
+						for (int v = 0; v < kernell.cols; v++) {
+							if (kernell(u, v) == 0 && isInside(src, i + u - kernell.rows / 2, j + v - kernell.cols / 2)) {
+								if (src(i + u - kernell.rows / 2, j + v - kernell.cols / 2) != 0) {
+									dst(i, j) = 255;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		imshow("Final", dst);
+		waitKey();
+	}
+}
 int main()
 {
 	//testNegativeImage();
@@ -1405,6 +1479,9 @@ int main()
 	//testingLabelTwoPass();
 	//borderTracing();
 	//reconstruct();
-	testReadPPm();
+	//testReadPPm();
+	Mat_<uchar> kernellB = createKernel(6, true);
+	//dillation(kernellB);
+	erosion(kernellB);
 	return 0;
 }

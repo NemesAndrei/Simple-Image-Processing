@@ -851,6 +851,17 @@ int checkInterval(int x) {
 		return 255;
 	}
 }
+float checkIntervalFloat(float x) {
+	if (x >= 0 && x <= 255) {
+		return x;
+	}
+	if (x < 0) {
+		return 0;
+	}
+	if (x > 255) {
+		return 255;
+	}
+}
 void FloydSteinberg() {
 	char fname[MAX_PATH];
 	while (openFileDlg(fname))
@@ -1457,6 +1468,208 @@ void erosion(Mat_<uchar> kernell) {
 		waitKey();
 	}
 }
+
+//LABORATOR 06.04
+
+float meanIntensityValue(Mat src) {
+	int height = src.rows;
+	int width = src.cols;
+	int* histoValues = computeHistogram(src);
+	int M = width * height;
+	float sum = 0;
+	for (int i = 0; i < 256; i++) {
+		sum += i * histoValues[i];
+	}
+	sum = sum / M;
+	cout <<"Mean Intensity value: " << sum << "\n";
+	return sum;
+}
+
+float standardDeviation(Mat src) {
+	int height = src.rows;
+	int width = src.cols;
+	float meanIntensity = meanIntensityValue(src);
+	float stdDeviation = 0;
+	float* normalisedHistoValues = computePDF(src);
+	for (int i = 0; i < 256; i++) {
+		stdDeviation += (i - meanIntensity) * (i - meanIntensity) * normalisedHistoValues[i];
+	}
+	stdDeviation = sqrt(stdDeviation);
+	cout << "Standard deviation value:" << stdDeviation << "\n";
+	return stdDeviation;
+}
+
+int* computeCumulativeHistogram(Mat src) {
+	int* histoValues = computeHistogram(src);
+	int* cumulativeHistoValues = (int*)calloc(256, sizeof(int));
+	for (int i = 0; i < 256; i++) {
+		for (int j = 0; j <= i; j++) {
+			cumulativeHistoValues[i] += histoValues[j];
+		}
+	}
+	return cumulativeHistoValues;
+}
+
+void globalThresholding(Mat src) {
+	int height = src.rows;
+	int width = src.cols;
+	int* histoValues = computeHistogram(src);
+	int maxI = 0;
+	int minI = 0;
+	for (int i = 0; i < 256; i++) {
+		if (histoValues[i] != 0) {
+			minI = i;
+			break;
+		}
+	}
+	for (int i = 255; i >= 0; i--) {
+		if (histoValues[i] != 0) {
+			maxI = i;
+			break;
+		}
+	}
+	float thresholdCurr = (minI + maxI) / 2.0;
+	float thresholdPred = -1;
+	float uG1;
+	float uG2;
+	int N1;
+	int N11;
+	int N2;
+	int N22;
+
+	while (abs(thresholdCurr - thresholdPred) >= 0.1) {
+		N1 = 0;
+		N2 = 0;
+		N11 = 0;
+		N22 = 0;
+		uG1 = 0;
+		uG2 = 0;
+		for (int i = minI; i <= maxI; i++) {
+			if (i <= thresholdCurr) {
+				N1 += histoValues[i];
+				N11 += i * histoValues[i];
+			}
+			else {
+				N2 += histoValues[i];
+				N22 += i * histoValues[i];
+			}
+		}
+		uG1 = N11 / N1;
+		uG2 = N22 / N2;
+		thresholdPred = thresholdCurr;
+		thresholdCurr = (uG1 + uG2) / 2.0;
+	}
+	imshow("Original", src);
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			if (src.at<uchar>(i, j) < thresholdCurr) {
+				src.at<uchar>(i, j) = 0;
+			}
+			else {
+				src.at<uchar>(i, j) = 255;
+			}
+		}
+	}
+	cout << thresholdCurr;
+	imshow("Result", src);
+	waitKey();
+}
+
+int* histogramStretchShrink(Mat src) {
+	int height = src.rows;
+	int width = src.cols;
+	int gOutMin;
+	int gOutMax;
+	cout << "Enter Minimum value for Stretch/Shrink: ";
+	cin >> gOutMin;
+	cout << "Enter Maximum value for Stretch/Shrink: ";
+	cin >> gOutMax;
+	int* histoValues = computeHistogram(src);
+	int gInMin;
+	int gInMax;
+	for (int i = 0; i < 256; i++) {
+		if (histoValues[i] != 0) {
+			gInMin = i;
+			break;
+		}
+	}
+	for (int i = 255; i >= 0; i--) {
+		if (histoValues[i] != 0) {
+			gInMax = i;
+			break;
+		}
+	}
+	imshow("Original", src);
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			src.at<uchar>(i, j) = gOutMin + (src.at<uchar>(i, j) - gInMin) * ((gOutMax - gOutMin) / (gInMax - gInMin));
+		}
+	}
+	int* histoValuesStretchShrink = (int*)calloc(256, sizeof(int));
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			histoValuesStretchShrink[src.at<uchar>(i, j)]++;
+		}
+	}
+	imshow("Stretch/Shrink", src);
+	showHistogram("Stretch/Shrink Histogram",histoValuesStretchShrink, 256, 300);
+	waitKey();
+	return histoValuesStretchShrink;
+}
+
+void gammaCorrection(Mat src) {
+	int height = src.rows;
+	int width = src.cols;
+	float gammaCoeff;
+	cout << "Enter a value for gamma coefficient: ";
+	cin >> gammaCoeff;
+	imshow("Original", src);
+	float* gammaCorrected=(float*)calloc(256,sizeof(float));
+	for (int i = 0; i < 256; i++) {
+		gammaCorrected[i]= checkIntervalFloat(255 * pow((float)i / 255, gammaCoeff));
+	}
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			src.at<uchar>(i, j) = gammaCorrected[src.at<uchar>(i, j)];
+		}
+	}
+	imshow("Gamma Correction", src);
+	waitKey();
+}
+
+void histogramEqualization(Mat src) {
+	int* histoValues = computeCumulativeHistogram(src);
+	int height = src.rows;
+	int width = src.cols;
+	int M = height * width;
+	int* histoValuesFinal = (int*)calloc(256, sizeof(int));
+	int* histoValuesEqualized = (int*)calloc(256, sizeof(int));
+	for (int i = 0; i < 256; i++) {
+		histoValuesFinal[i] = 255 * histoValues[i]/M;
+	}
+	imshow("Original", src);
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			src.at<uchar>(i, j) = histoValuesFinal[src.at<uchar>(i, j)];
+			histoValuesEqualized[src.at<uchar>(i, j)]++;
+		}
+	}
+	imshow("Equalized", src);
+	showHistogram("Equalized Histogram", histoValuesEqualized, 256, 300);
+}
+void testAll() {
+	char fname[256];
+	while (openFileDlg(fname)) {
+		Mat_<uchar> src = imread(fname, IMREAD_GRAYSCALE);
+		//standardDeviation(src);
+		//globalThresholding(src);
+		//histogramStretchShrink(src);
+		//gammaCorrection(src);
+		histogramEqualization(src);
+		waitKey();
+	}
+}
+
 int main()
 {
 	//testNegativeImage();
@@ -1480,8 +1693,9 @@ int main()
 	//borderTracing();
 	//reconstruct();
 	//testReadPPm();
-	Mat_<uchar> kernellB = createKernel(6, true);
+	//Mat_<uchar> kernellB = createKernel(6, true);
 	//dillation(kernellB);
-	erosion(kernellB);
+	//erosion(kernellB);
+	testAll();
 	return 0;
 }

@@ -1602,7 +1602,7 @@ int* histogramStretchShrink(Mat src) {
 	imshow("Original", src);
 	for (int i = 0; i < height; i++) {
 		for (int j = 0; j < width; j++) {
-			src.at<uchar>(i, j) = gOutMin + (src.at<uchar>(i, j) - gInMin) * ((gOutMax - gOutMin) / (gInMax - gInMin));
+			src.at<uchar>(i, j) = gOutMin + (src.at<uchar>(i, j) - gInMin) * (gOutMax - gOutMin) / (gInMax - gInMin);
 		}
 	}
 	int* histoValuesStretchShrink = (int*)calloc(256, sizeof(int));
@@ -1663,9 +1663,122 @@ void testAll() {
 		Mat_<uchar> src = imread(fname, IMREAD_GRAYSCALE);
 		//standardDeviation(src);
 		//globalThresholding(src);
-		//histogramStretchShrink(src);
+		histogramStretchShrink(src);
 		//gammaCorrection(src);
-		histogramEqualization(src);
+		//histogramEqualization(src);
+		waitKey();
+	}
+}
+
+//LABORATOR 13.04
+Mat_<float> createKernelMean() {
+	Mat_<float> kernel(3, 3);
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			kernel(i, j) = 1;
+		}
+	}
+	return kernel;
+}
+
+Mat_<float> createKernelGaussian() {
+	Mat_<float> kernel(3, 3);
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			kernel(i, j) = 1;
+		}
+	}
+	return kernel;
+}
+
+Mat_<float> createKernelLaplace() {
+	Mat_<float> kernel(3, 3);
+	kernel(0, 0) = 0;
+	kernel(0, 1) = -1;
+	kernel(0, 2) = 0;
+	kernel(1, 0) = -1;
+	kernel(1, 1) = 4;
+	kernel(1, 2) = -1;
+	kernel(2, 0) = 0;
+	kernel(2, 1) = -1;
+	kernel(2, 2) = 0;
+	return kernel;
+}
+
+Mat_<float> convolution(Mat_<uchar> img, Mat_<float> kernel) {
+
+	int imgHeight = img.rows;
+	int imgWidth = img.cols;
+	int kernelHeight = kernel.rows;
+	int kernelWidh = kernel.cols;
+	Mat_<float> dst(imgHeight, imgWidth);
+	dst.setTo(0);
+	for (int i = 0; i < imgHeight; i++) {
+		for (int j = 0; j < imgWidth; j++) {
+			for (int u = 0; u < kernelHeight; u++) {
+				for (int v = 0; v < kernelWidh; v++) {
+					if (isInside(img, i + u - kernelHeight / 2, j + v + kernelWidh / 2)) {
+						dst(i,j) += kernel(u, v) * img(i + u - kernelHeight / 2, j + v + kernelWidh / 2);
+					}
+				}
+			}
+		}
+	}
+	return dst;
+}
+
+Mat_<uchar> normalization(Mat_<float> imgConv, Mat_<float> kernel, bool highPassMethod) {
+	int imgHeight = imgConv.rows;
+	int imgWidth = imgConv.cols;
+	int kernelHeight = kernel.rows;
+	int kernelWidh = kernel.cols;
+	float sumPos = 0;
+	float sumNeg = 0;
+	Mat_<uchar> dst(imgHeight, imgWidth);
+
+	for (int i = 0; i< kernelHeight; i++) {
+		for (int j = 0; j < kernelWidh; j++) {
+			if (kernel(i, j) > 0) {
+				sumPos += kernel(i, j);
+			}
+			else {
+				sumNeg += kernel(i, j);
+			}
+		}
+	}
+	if (sumNeg != 0) {
+		for (int i = 0; i < imgHeight; i++) {
+			for (int j = 0; j < imgWidth; j++) {
+				if (highPassMethod == 0) {
+					dst(i, j) = abs(imgConv(i, j)) / max(sumPos, -sumNeg);
+				}
+				else {
+					dst(i, j) = 128 + imgConv(i, j) / (2 * max(sumPos, -sumNeg));
+				}
+			}
+		}
+		return dst;
+	}
+	for (int i = 0; i < imgHeight; i++) {
+		for (int j = 0; j < imgWidth; j++) {
+			dst(i, j) = imgConv(i, j) / sumPos;
+		}
+	}
+	return dst;
+
+}
+void testSpatialFilter() {
+	
+	char fname[256];
+	while (openFileDlg(fname)) {
+		Mat_<float> kernel = createKernelLaplace();
+		Mat_<uchar> src = imread(fname, IMREAD_GRAYSCALE);
+		Mat_<float> convolutedSrc = convolution(src, kernel);
+		Mat_<uchar> normalisedSrcAbs = normalization(convolutedSrc, kernel, 0);
+		//Mat_<uchar> normalisedSrc128 = normalization(convolutedSrc, kernel, 1);
+		imshow("Original", src);
+		imshow("Final 1", normalisedSrcAbs);
+		//imshow("Final 2", normalisedSrc128);
 		waitKey();
 	}
 }
@@ -1696,6 +1809,7 @@ int main()
 	//Mat_<uchar> kernellB = createKernel(6, true);
 	//dillation(kernellB);
 	//erosion(kernellB);
-	testAll();
+	//testAll();
+	testSpatialFilter();
 	return 0;
 }
